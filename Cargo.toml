@@ -1,0 +1,18 @@
+[package]
+name = "todo_demo_in_actix-web"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.3.1"
+anyhow = "1.0.70"
+mime = "0.3.17"
+serde = { version = "1.0.158", features = ["derive"] }
+serde_json = "1.0.94"
+thiserror = "1.0.40"
+tokio = { version = "1.26.0", features = ["full"] }
+tracing = "0.1.37"
+tracing-actix-web = "0.7.3"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
