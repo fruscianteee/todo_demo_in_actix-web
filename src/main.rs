@@ -1,6 +1,6 @@
 use actix_web::{web, App, HttpServer};
 use std::{env, net::SocketAddr};
-use todo_demo_in_actix_web::router;
+use todo_demo_in_actix_web::{self, handler::config, repositories};
 use tracing_actix_web::TracingLogger;
 
 #[actix_web::main]
@@ -11,13 +11,13 @@ async fn main() -> std::io::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
 
-    let repository = web::Data::new(router::TodoRepositoryForMemory::new());
+    let repository = web::Data::new(repositories::TodoRepositoryForMemory::new());
 
     HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
             .app_data(repository.clone())
-            .configure(router::config)
+            .configure(config)
     })
     .bind(addr)?
     .run()

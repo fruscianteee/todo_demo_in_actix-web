@@ -1,57 +1,10 @@
-use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use thiserror::Error;
-use tracing::{info, info_span};
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub struct CreateUser {
-    pub username: String,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub struct User {
-    pub id: u64,
-    pub username: String,
-}
-
-pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(root);
-    cfg.service(create_user);
-    cfg.service(create_todo);
-}
-
-#[get("/")]
-async fn root() -> impl Responder {
-    info!("Call : Hello actix!!");
-    HttpResponse::Ok().body("Hello actix!!")
-}
-
-#[post("/users")]
-async fn create_user(payload: web::Json<CreateUser>) -> impl Responder {
-    let user = User {
-        id: 1337,
-        username: payload.username.to_string(),
-    };
-    let _span = info_span!("request userdata: ", "{:?}", user).entered();
-    info!("create_user");
-    HttpResponse::Ok().status(StatusCode::CREATED).json(user)
-}
-
-#[post("/todos")]
-async fn create_todo(
-    payload: web::Json<CreateTodo>,
-    repository: web::Data<TodoRepositoryForMemory>,
-) -> impl Responder {
-    let hoge = CreateTodo {
-        text: payload.text.to_string(),
-    };
-    dbg!(&repository);
-    let todo = repository.create(hoge);
-    HttpResponse::Ok().status(StatusCode::CREATED).json(todo)
-}
 
 #[derive(Debug, Error)]
 enum RepositoryError {
@@ -75,7 +28,7 @@ pub struct Todo {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct CreateTodo {
-    text: String,
+    pub(crate) text: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
@@ -107,6 +60,14 @@ impl TodoRepositoryForMemory {
             store: Arc::default(),
         }
     }
+
+    fn write_store_ref(&self) -> RwLockWriteGuard<TodoDatas> {
+        self.store.write().unwrap()
+    }
+
+    fn read_store_ref(&self) -> RwLockReadGuard<TodoDatas> {
+        self.store.read().unwrap()
+    }
 }
 
 impl Default for TodoRepositoryForMemory {
@@ -117,19 +78,40 @@ impl Default for TodoRepositoryForMemory {
 
 impl TodoRepository for TodoRepositoryForMemory {
     fn create(&self, payload: CreateTodo) -> Todo {
-        todo!();
+        let mut store = self.write_store_ref();
+        let id = (store.len() + 1) as i32;
+        let todo = Todo::new(id, payload.text);
+        store.insert(id, todo.clone());
+        todo
     }
 
     fn find(&self, id: i32) -> Option<Todo> {
-        todo!();
+        let store = self.read_store_ref();
+        store.get(&id).cloned()
     }
+
     fn all(&self) -> Vec<Todo> {
-        todo!();
+        let store = self.read_store_ref();
+        Vec::from_iter(store.values().cloned())
     }
+
     fn update(&self, id: i32, payload: UpdateTodo) -> anyhow::Result<Todo> {
-        todo!();
+        let mut store = self.write_store_ref();
+        let todo = store.get(&id).context(RepositoryError::NotFound(id))?;
+        let text = payload.text.unwrap_or(todo.text.clone());
+        let completed = payload.completed.unwrap_or(todo.completed);
+        let todo = Todo {
+            id,
+            text,
+            completed,
+        };
+        store.insert(id, todo.clone());
+        Ok(todo)
     }
+
     fn delete(&self, id: i32) -> anyhow::Result<()> {
-        todo!();
+        let mut store = self.write_store_ref();
+        store.remove(&id).ok_or(RepositoryError::NotFound(id))?;
+        Ok(())
     }
 }
