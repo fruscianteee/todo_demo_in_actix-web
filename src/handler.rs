@@ -1,12 +1,17 @@
-use actix_web::{delete, get, http::StatusCode, patch, post, web, HttpResponse, Responder};
+use crate::repositories::{CreateTodo, TodoRepository, TodoRepositoryForMemory, UpdateTodo};
+use actix_web::{
+    delete, get,
+    http::StatusCode,
+    patch, post,
+    web::{self, Json},
+    HttpResponse, Responder,
+};
 use serde::{Deserialize, Serialize};
-use tracing::{info, info_span};
-
-use crate::repositories::{CreateTodo, TodoRepository, TodoRepositoryForMemory};
+use tracing::{info_span, instrument};
+use validator::Validate;
 
 // 各routerをここて定義する。
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(hello_todo);
     cfg.service(all_todo);
     cfg.service(create_todo);
     cfg.service(find_todo);
@@ -14,54 +19,70 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(delete_todo);
     cfg.service(create_user);
 }
+
+#[instrument(ret)]
 #[get("/")]
 pub async fn hello_todo() -> impl Responder {
-    info!("Call : Hello actix!!");
     HttpResponse::Ok().body("Hello actix!!")
 }
 
+#[instrument(ret)]
 #[get("/todos")]
-pub async fn all_todo(_repository: web::Data<TodoRepositoryForMemory>) -> impl Responder {
-    HttpResponse::Ok().json([1, 2])
+pub async fn all_todo(repository: web::Data<TodoRepositoryForMemory>) -> impl Responder {
+    let todo = repository.all();
+    HttpResponse::Ok().json(&todo)
 }
 
+#[instrument(ret, skip(repository))]
 #[post("/todos")]
 pub async fn create_todo(
-    payload: web::Json<CreateTodo>,
+    Json(payload): web::Json<CreateTodo>,
     repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
-    let todo = CreateTodo {
-        text: payload.text.to_string(),
-    };
-    let _span = info_span!("Post todo: ", "{:?}", todo).entered();
-    info!("create_todo");
-    let todo = repository.create(todo);
-    HttpResponse::Ok().status(StatusCode::CREATED).json(todo)
+    match payload.validate() {
+        Ok(_) => {
+            let todo = repository.create(payload);
+            HttpResponse::Created().json(todo)
+        }
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }
 
+#[instrument(ret)]
 #[get("/todos/{id}")]
 pub async fn find_todo(
-    _info: web::Query<i32>,
-    _repository: web::Data<TodoRepositoryForMemory>,
+    id: web::Path<i32>,
+    repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
-    HttpResponse::Ok().body("Hello actix!!")
+    match repository.find(id.into_inner()) {
+        Some(v) => HttpResponse::Ok().json(v),
+        None => HttpResponse::NotFound().finish(),
+    }
 }
 
+#[instrument(ret)]
 #[patch("/todos/{id}")]
 pub async fn update_todo(
-    _info: web::Query<i32>,
-    _payload: web::Json<CreateTodo>,
-    _repository: web::Data<TodoRepositoryForMemory>,
+    id: web::Path<i32>,
+    Json(payload): web::Json<UpdateTodo>,
+    repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
-    HttpResponse::Ok().body("Hello actix!!")
+    match repository.update(id.into_inner(), payload) {
+        Ok(v) => HttpResponse::Created().json(v),
+        Err(_) => HttpResponse::NotFound().finish(),
+    }
 }
 
+#[instrument(ret)]
 #[delete("/todos/{id}")]
 pub async fn delete_todo(
-    _info: web::Query<i32>,
-    _repository: web::Data<TodoRepositoryForMemory>,
+    id: web::Path<i32>,
+    repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
-    HttpResponse::Ok().body("Hello actix!!")
+    match repository.delete(id.into_inner()) {
+        Ok(_) => HttpResponse::NoContent().finish(),
+        Err(_) => HttpResponse::NotFound().finish(),
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
@@ -75,12 +96,12 @@ pub struct User {
     pub username: String,
 }
 #[post("/users")]
+#[instrument(ret)]
 async fn create_user(payload: web::Json<CreateUser>) -> impl Responder {
     let user = User {
         id: 1337,
         username: payload.username.to_string(),
     };
     let _span = info_span!("request userdata: ", "{:?}", user).entered();
-    info!("create_user");
     HttpResponse::Ok().status(StatusCode::CREATED).json(user)
 }

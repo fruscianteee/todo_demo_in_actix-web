@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use thiserror::Error;
+use validator::Validate;
 
 // 汎用的なエラーメッセージをここに集結させる。
 #[derive(Debug, Error)]
@@ -31,13 +32,24 @@ impl Todo {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Validate)]
 pub struct CreateTodo {
+    #[validate(length(min = 1, message = "Can not be empty"))]
+    #[validate(length(max = 100, message = "Over text length"))]
     pub text: String,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+#[cfg(test)]
+impl CreateTodo {
+    pub fn new(text: String) -> Self {
+        Self { text }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Validate)]
 pub struct UpdateTodo {
+    #[validate(length(min = 1, message = "Can not be empty"))]
+    #[validate(length(min = 100, message = "Over text length"))]
     pub text: Option<String>,
     pub completed: Option<bool>,
 }
@@ -84,6 +96,7 @@ pub trait TodoRepository: Clone + std::marker::Send + std::marker::Sync + 'stati
 impl TodoRepository for TodoRepositoryForMemory {
     fn create(&self, payload: CreateTodo) -> Todo {
         let mut store = self.write_store_ref();
+        // Todo: 例えば、idが2のtodoが1つしかない場合は、いくらcreateしてもtodoが作れないバグがある。
         let id = (store.len() + 1) as i32;
         let todo = Todo::new(id, payload.text);
         store.insert(id, todo.clone());
@@ -115,6 +128,7 @@ impl TodoRepository for TodoRepositoryForMemory {
     }
 
     fn delete(&self, id: i32) -> anyhow::Result<()> {
+        // Todo: Create側のバグがあるので、そのバグをここで防ぐかどうか。
         let mut store = self.write_store_ref();
         store.remove(&id).ok_or(RepositoryError::NotFound(id))?;
         Ok(())
@@ -131,20 +145,20 @@ mod test {
         let id = 1;
         let expected = Todo::new(id, text.clone());
 
-        //create
+        //create : Todoを作成
         let repository = TodoRepositoryForMemory::new();
         let todo = repository.create(CreateTodo { text });
         assert_eq!(expected, todo);
 
-        //find
+        //find　：Todo idを取得
         let todo = repository.find(todo.id).unwrap();
         assert_eq!(expected, todo);
 
-        //all
+        //all　全てのTodoを取得
         let todo = repository.all();
         assert_eq!(vec![expected], todo);
 
-        // update
+        // update　： Todoを更新
         let text = "update todo text".to_string();
         let todo = repository
             .update(
@@ -165,7 +179,7 @@ mod test {
             todo
         );
 
-        // delete
+        // delete　：Todoを削除
         let res = repository.delete(id);
         assert!(res.is_ok())
     }
