@@ -29,7 +29,7 @@ pub async fn hello_todo() -> impl Responder {
 #[instrument(ret)]
 #[get("/todos")]
 pub async fn all_todo(repository: web::Data<TodoRepositoryForMemory>) -> impl Responder {
-    let todo = repository.all();
+    let todo = repository.all().await.unwrap();
     HttpResponse::Ok().json(&todo)
 }
 
@@ -40,10 +40,10 @@ pub async fn create_todo(
     repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
     match payload.validate() {
-        Ok(_) => {
-            let todo = repository.create(payload);
-            HttpResponse::Created().json(todo)
-        }
+        Ok(_) => match repository.create(payload).await {
+            Ok(todo) => HttpResponse::Created().json(todo),
+            Err(_) => HttpResponse::NotFound().finish(),
+        },
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -54,9 +54,9 @@ pub async fn find_todo(
     id: web::Path<i32>,
     repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
-    match repository.find(id.into_inner()) {
-        Some(v) => HttpResponse::Ok().json(v),
-        None => HttpResponse::NotFound().finish(),
+    match repository.find(id.into_inner()).await {
+        Ok(v) => HttpResponse::Ok().json(v),
+        Err(_) => HttpResponse::NotFound().finish(),
     }
 }
 
@@ -67,7 +67,7 @@ pub async fn update_todo(
     Json(payload): web::Json<UpdateTodo>,
     repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
-    match repository.update(id.into_inner(), payload) {
+    match repository.update(id.into_inner(), payload).await {
         Ok(v) => HttpResponse::Created().json(v),
         Err(_) => HttpResponse::NotFound().finish(),
     }
@@ -79,7 +79,7 @@ pub async fn delete_todo(
     id: web::Path<i32>,
     repository: web::Data<TodoRepositoryForMemory>,
 ) -> impl Responder {
-    match repository.delete(id.into_inner()) {
+    match repository.delete(id.into_inner()).await {
         Ok(_) => HttpResponse::NoContent().finish(),
         Err(_) => HttpResponse::NotFound().finish(),
     }

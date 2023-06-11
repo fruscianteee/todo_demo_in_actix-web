@@ -1,5 +1,7 @@
-use anyhow::Context;
+use anyhow::{Context, Result};
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
@@ -85,35 +87,41 @@ impl Default for TodoRepositoryForMemory {
 }
 
 // Todo　リポジトリインターフェース
+#[async_trait]
 pub trait TodoRepository: Clone + std::marker::Send + std::marker::Sync + 'static {
-    fn create(&self, payload: CreateTodo) -> Todo;
-    fn find(&self, id: i32) -> Option<Todo>;
-    fn all(&self) -> Vec<Todo>;
-    fn update(&self, id: i32, payload: UpdateTodo) -> anyhow::Result<Todo>;
-    fn delete(&self, id: i32) -> anyhow::Result<()>;
+    async fn create(&self, payload: CreateTodo) -> Result<Todo>;
+    async fn find(&self, id: i32) -> Result<Todo>;
+    async fn all(&self) -> Result<Vec<Todo>>;
+    async fn update(&self, id: i32, payload: UpdateTodo) -> Result<Todo>;
+    async fn delete(&self, id: i32) -> Result<()>;
 }
 
+#[async_trait]
 impl TodoRepository for TodoRepositoryForMemory {
-    fn create(&self, payload: CreateTodo) -> Todo {
+    async fn create(&self, payload: CreateTodo) -> Result<Todo> {
         let mut store = self.write_store_ref();
         // Todo: 例えば、idが2のtodoが1つしかない場合は、いくらcreateしてもtodoが作れないバグがある。
         let id = (store.len() + 1) as i32;
         let todo = Todo::new(id, payload.text);
         store.insert(id, todo.clone());
-        todo
+        Ok(todo)
     }
 
-    fn find(&self, id: i32) -> Option<Todo> {
+    async fn find(&self, id: i32) -> Result<Todo> {
         let store = self.read_store_ref();
-        store.get(&id).cloned()
+        let todo = store
+            .get(&id)
+            .cloned()
+            .ok_or(RepositoryError::NotFound(id))?;
+        Ok(todo)
     }
 
-    fn all(&self) -> Vec<Todo> {
+    async fn all(&self) -> Result<Vec<Todo>> {
         let store = self.read_store_ref();
-        Vec::from_iter(store.values().cloned())
+        Ok(Vec::from_iter(store.values().cloned()))
     }
 
-    fn update(&self, id: i32, payload: UpdateTodo) -> anyhow::Result<Todo> {
+    async fn update(&self, id: i32, payload: UpdateTodo) -> Result<Todo> {
         let mut store = self.write_store_ref();
         let todo = store.get(&id).context(RepositoryError::NotFound(id))?;
         let text = payload.text.unwrap_or(todo.text.clone());
@@ -127,7 +135,7 @@ impl TodoRepository for TodoRepositoryForMemory {
         Ok(todo)
     }
 
-    fn delete(&self, id: i32) -> anyhow::Result<()> {
+    async fn delete(&self, id: i32) -> Result<()> {
         // Todo: Create側のバグがあるので、そのバグをここで防ぐかどうか。
         let mut store = self.write_store_ref();
         store.remove(&id).ok_or(RepositoryError::NotFound(id))?;
@@ -139,23 +147,26 @@ impl TodoRepository for TodoRepositoryForMemory {
 mod test {
     use super::*;
 
-    #[test]
-    fn todo_crud_scenario() {
+    #[actix_web::test]
+    async fn todo_crud_scenario() {
         let text = "todo test".to_string();
         let id = 1;
         let expected = Todo::new(id, text.clone());
 
         //create : Todoを作成
         let repository = TodoRepositoryForMemory::new();
-        let todo = repository.create(CreateTodo { text });
+        let todo = repository
+            .create(CreateTodo { text })
+            .await
+            .expect("failed create todo.");
         assert_eq!(expected, todo);
 
         //find　：Todo idを取得
-        let todo = repository.find(todo.id).unwrap();
+        let todo = repository.find(todo.id).await.unwrap();
         assert_eq!(expected, todo);
 
         //all　全てのTodoを取得
-        let todo = repository.all();
+        let todo = repository.all().await.expect("failed get all todo.");
         assert_eq!(vec![expected], todo);
 
         // update　： Todoを更新
@@ -168,6 +179,7 @@ mod test {
                     completed: Some(true),
                 },
             )
+            .await
             .expect("failed update todo.");
 
         assert_eq!(
@@ -180,7 +192,7 @@ mod test {
         );
 
         // delete　：Todoを削除
-        let res = repository.delete(id);
+        let res = repository.delete(id).await;
         assert!(res.is_ok())
     }
 }

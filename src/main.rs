@@ -1,5 +1,5 @@
 use actix_web::{web, App, HttpServer};
-use std::{env, net::SocketAddr};
+use std::net::SocketAddr;
 use todo_demo_in_actix_web::{self, handler::config, repositories};
 use tracing_actix_web::TracingLogger;
 
@@ -50,9 +50,25 @@ mod tests {
         self, handler,
         repositories::{CreateTodo, Todo, TodoRepositoryForMemory},
     };
+    use tracing::{debug, instrument};
+    use tracing_subscriber::EnvFilter;
 
+    use std::{env, sync::Once};
+    static INIT: Once = Once::new();
+    fn initialize_tracing() {
+        INIT.call_once(|| {
+            let log_level = env::var("RUST_LOG").unwrap_or("debug".into());
+            env::set_var("RUST_LOG", log_level);
+            tracing_subscriber::fmt()
+                .with_env_filter(EnvFilter::from_default_env())
+                .init();
+        });
+    }
     #[actix_web::test]
+    #[instrument(ret)]
     async fn should_created_todo() {
+        initialize_tracing();
+        debug!("should_created_todo");
         //初期化
         let repository = web::Data::new(TodoRepositoryForMemory::new());
 
@@ -77,6 +93,8 @@ mod tests {
 
     #[actix_web::test]
     async fn should_find_todo() {
+        initialize_tracing();
+        tracing::debug!("should_find_todo開始");
         //初期化
         let repository = web::Data::new(TodoRepositoryForMemory::new());
 
@@ -103,6 +121,7 @@ mod tests {
 
     #[actix_web::test]
     async fn should_get_all_todos() {
+        initialize_tracing();
         let repository = web::Data::new(TodoRepositoryForMemory::new());
         let app =
             test::init_service(App::new().app_data(repository).configure(handler::config)).await;
@@ -128,6 +147,7 @@ mod tests {
 
     #[actix_web::test]
     async fn should_update_todos() {
+        initialize_tracing();
         let repository = web::Data::new(TodoRepositoryForMemory::new());
         let app =
             test::init_service(App::new().app_data(repository).configure(handler::config)).await;
@@ -157,6 +177,7 @@ mod tests {
 
     #[actix_web::test]
     async fn should_delete_todo() {
+        initialize_tracing();
         let repository = web::Data::new(TodoRepositoryForMemory::new());
         let app =
             test::init_service(App::new().app_data(repository).configure(handler::config)).await;

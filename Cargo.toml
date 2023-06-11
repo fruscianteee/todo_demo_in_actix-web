@@ -8,9 +8,16 @@ edition = "2021"
 [dependencies]
 actix-web = "4.3.1"
 anyhow = "1.0.71"
+async-trait = "0.1.68"
+dotenv = "0.15.0"
 mime = "0.3.17"
 serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
+sqlx = { version = "0.6.3", features = [
+    "runtime-tokio-rustls",
+    "any",
+    "postgres",
+] }
 thiserror = "1.0.40"
 tokio = { version = "1.28.1", features = ["full"] }
 tracing = "0.1.37"
