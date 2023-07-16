@@ -1,6 +1,9 @@
 # ToDo Demo in Actix-Web
 
 ## 概要
+https://github.com/AkifumiSato/learn-rust-with-web-application
+AkifumiSato氏の実装を参考にして実装してます。素晴らしい書籍に感謝しています。ありがとうございます。
+
 このアプリケーションは、Actix-Webフレームワークを使用して作成されたシンプルなToDoアプリです。
 タスクの作成、読み取り、更新、削除（CRUD）操作を提供し、ラベリングやバリデーションなどの機能も備えています。
 起動すると、ウェブインタフェースには `localhost:3000` でアクセスすることができます。
@@ -25,8 +28,9 @@
 ## 使用方法
 1. リポジトリをクローンします: `git clone https://github.com/fruscianteee/todo_demo_in_actix-web.git`
 2. プロジェクトディレクトリに移動します: `cd todo_demo_in_actix-web`
-3. アプリケーションをビルドして実行します: `cargo run`
-4. ブラウザで `localhost:3000` にアクセスしてウェブインタフェースを利用します。
+3. docker composeを使ってdbを起動します。: `make db`
+4. アプリケーションをビルドして実行します: `make dev`
+5. ブラウザで `localhost:8080` にアクセスしてウェブインタフェースを利用します。
 
 ## ライセンス
 このプロジェクトはMITライセンスのもとで提供されています。詳細は [LICENSE](LICENSE) ファイルを参照してください。

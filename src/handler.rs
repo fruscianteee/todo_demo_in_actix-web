@@ -1,4 +1,4 @@
-use crate::repositories::{CreateTodo, TodoRepository, TodoRepositoryForMemory, UpdateTodo};
+use crate::repositories::{CreateTodo, TodoRepository, TodoRepositoryForDB, UpdateTodo};
 use actix_web::{
     delete, get,
     http::StatusCode,
@@ -28,7 +28,7 @@ pub async fn hello_todo() -> impl Responder {
 
 #[instrument(ret)]
 #[get("/todos")]
-pub async fn all_todo(repository: web::Data<TodoRepositoryForMemory>) -> impl Responder {
+pub async fn all_todo(repository: web::Data<TodoRepositoryForDB>) -> impl Responder {
     let todo = repository.all().await.unwrap();
     HttpResponse::Ok().json(&todo)
 }
@@ -37,7 +37,7 @@ pub async fn all_todo(repository: web::Data<TodoRepositoryForMemory>) -> impl Re
 #[post("/todos")]
 pub async fn create_todo(
     Json(payload): web::Json<CreateTodo>,
-    repository: web::Data<TodoRepositoryForMemory>,
+    repository: web::Data<TodoRepositoryForDB>,
 ) -> impl Responder {
     match payload.validate() {
         Ok(_) => match repository.create(payload).await {
@@ -52,7 +52,7 @@ pub async fn create_todo(
 #[get("/todos/{id}")]
 pub async fn find_todo(
     id: web::Path<i32>,
-    repository: web::Data<TodoRepositoryForMemory>,
+    repository: web::Data<TodoRepositoryForDB>,
 ) -> impl Responder {
     match repository.find(id.into_inner()).await {
         Ok(v) => HttpResponse::Ok().json(v),
@@ -65,7 +65,7 @@ pub async fn find_todo(
 pub async fn update_todo(
     id: web::Path<i32>,
     Json(payload): web::Json<UpdateTodo>,
-    repository: web::Data<TodoRepositoryForMemory>,
+    repository: web::Data<TodoRepositoryForDB>,
 ) -> impl Responder {
     match repository.update(id.into_inner(), payload).await {
         Ok(v) => HttpResponse::Created().json(v),
@@ -77,7 +77,7 @@ pub async fn update_todo(
 #[delete("/todos/{id}")]
 pub async fn delete_todo(
     id: web::Path<i32>,
-    repository: web::Data<TodoRepositoryForMemory>,
+    repository: web::Data<TodoRepositoryForDB>,
 ) -> impl Responder {
     match repository.delete(id.into_inner()).await {
         Ok(_) => HttpResponse::NoContent().finish(),

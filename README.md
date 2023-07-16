@@ -1,6 +1,9 @@
 # ToDo Demo in Actix-Web
 
 ## Overview
+https://github.com/AkifumiSato/learn-rust-with-web-application
+I am implementing this based on AkifumiSato's implementation. Thanks for the great book. Thank you very much.
+
 This is a simple ToDo application created using Actix-Web framework.
 The application provides CRUD operations for managing tasks, along with features such as labeling and validation.
 When launched, the web interface can be accessed at `localhost:3000`.
@@ -25,8 +28,9 @@ The following are the main crates used in this application:
 ## Usage
 1. Clone the repository: `git clone https://github.com/fruscianteee/todo_demo_in_actix-web.git`
 2. Change into the project directory: `cd todo_demo_in_actix-web`
-3. Build and run the application: `cargo run`
-4. Access the web interface in your browser at `localhost:3000`
+3. Use docker compose to start the db: `make db`
+4. Build and run the application: `make dev`
+5. Access the web interface in your browser at `localhost:8080`
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
